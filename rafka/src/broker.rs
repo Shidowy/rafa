@@ -12,62 +12,105 @@ pub struct Message {
 pub struct Partition {
     id: usize,
     subscribers: Vec<mpsc::Sender<Message>>,
-    log: VecDeque<Message>,  // In-memory message log for retention
-    retention_limit: usize,   // Define the max size for log
+    messages: Vec<Message>, // Store messages in the partition
+    retention_limit: usize,  // Set a retention limit
 }
 
 impl Partition {
-    fn new(id: usize, retention_limit: usize) -> Self {
+    // Update this method to include the retention limit
+    pub fn new(id: usize, retention_limit: usize) -> Self {
         Partition {
             id,
             subscribers: Vec::new(),
-            log: VecDeque::new(),
+            messages: Vec::new(),  // Initialize empty messages
             retention_limit,
         }
     }
 
+    // Add a message and enforce retention
     pub fn add_message(&mut self, message: Message) {
-        if self.log.len() == self.retention_limit {
-            self.log.pop_front(); // Remove the oldest message if limit is reached
+        if self.messages.len() >= self.retention_limit {
+            self.messages.remove(0); 
         }
-        self.log.push_back(message);
+        self.messages.push(message);
     }
 }
 
+
 #[derive(Clone)]
 pub struct Broker {
-    partitions: HashMap<String, Vec<Partition>>, // Map topics to partitions
+    partitions: HashMap<String, Vec<Partition>>,
+    pub acknowledged_messages: HashMap<String, Vec<Message>>, 
+    acknowledged_counts: HashMap<String, usize>,
 }
 
 impl Broker {
     pub fn new() -> Self {
         Broker {
             partitions: HashMap::new(),
+            acknowledged_messages: HashMap::new(),
+            acknowledged_counts: HashMap::new(),
         }
     }
 
     pub async fn publish(&mut self, message: Message, partition_id: usize) {
-        if let Some(partitions) = self.partitions.get_mut(&message.topic) {
-            if let Some(partition) = partitions.get_mut(partition_id) {
-                partition.add_message(message.clone()); // Add to log for retention
-                for sub in &partition.subscribers {
-                    let _ = sub.send(message.clone()).await;
-                }
+    
+        let partitions = self.partitions.entry(message.topic.clone()).or_insert_with(Vec::new);
+    
+        // Create the necessary partition if it doesn't exist
+        while partitions.len() <= partition_id {
+            partitions.push(Partition::new(partitions.len(), 100)); // Adjust the new method to your needs
+            log::info!("Created new partition {} for topic '{}'", partition_id, message.topic);
+        }
+    
+        // Publish the message to the specified partition
+        if let Some(partition) = partitions.get_mut(partition_id) {
+            for sub in &partition.subscribers {
+                let _ = sub.send(message.clone()).await; // Send message to partition subscribers
             }
+            log::info!("Message sent to topic '{}', partition {}", message.topic, partition_id);
+        } else {
+            log::error!("Partition {} not found for topic '{}'", partition_id, message.topic);
         }
     }
+    
 
     pub fn subscribe(&mut self, topic: String, partition_id: usize) -> mpsc::Receiver<Message> {
         let (tx, rx) = mpsc::channel(100);
-        let partitions = self.partitions.entry(topic.clone()).or_insert_with(Vec::new);
     
-        let current_len = partitions.len();
+        // Clone the topic for logging and to avoid moving it
+        let topic_clone = topic.clone();
     
-        if current_len <= partition_id {
-            partitions.resize_with(partition_id + 1, || Partition::new(current_len, 100));
+        // Ensure the partition exists
+        let partition = self.partitions.entry(topic_clone.clone()).or_insert_with(Vec::new);
+        
+        while partition.len() <= partition_id {
+            partition.push(Partition::new(partition.len(), 100)); // Create a new partition if it doesn't exist
         }
     
-        partitions[partition_id].subscribers.push(tx);
+        // Log the subscription
+        log::info!("Subscriber added to topic '{}', partition {}", topic_clone, partition_id);
+    
+        
+        let partition_acks = self.acknowledged_messages
+            .entry(topic_clone.clone())
+            .or_insert_with(Vec::new); 
+    
+        
+        partition_acks.entry(partition_id).or_insert_with(Vec::new);
+    
+        // Add the subscriber to the partition
+        partition[partition_id].subscribers.push(tx);
         rx
     }
+    
+    // Optional: A method for logging status
+    pub fn log_status(&self) {
+        for (topic, partitions) in &self.partitions {
+            log::info!("Topic: '{}', Partitions: {}", topic, partitions.len());
+            for partition in partitions {
+                log::info!("  Partition {} has {} subscribers.", partition.id, partition.subscribers.len());
+            }
+        }
+    }    
 }

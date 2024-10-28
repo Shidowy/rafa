@@ -8,6 +8,8 @@ use tokio;
 
 #[tokio::main]
 async fn main() {
+    // Initialize the logger
+    env_logger::init();
     let broker = Arc::new(Mutex::new(Broker::new())); 
 
     let topic = "news";
