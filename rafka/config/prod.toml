@@ -1,0 +1,13 @@
+[server]
+host = "0.0.0.0"    # Bind to all interfaces for production
+port = 9092         # Production port
+
+[log]
+level = "info"      # Standard logging level for production
+
+[broker]
+replication_factor = 3  # Higher replication factor for fault tolerance
+default_topic_partitions = 3
+
+[storage]
+type = "file_based"  # Persistent storage for production reliability

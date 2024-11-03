@@ -4,9 +4,19 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-tokio = { version = "1.31", features = ["full"] }
+# Essential async runtime for handling concurrency
+tokio = { version = "1.0", features = ["full"] }
+# For serialization/deserialization of configurations
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0.68"
-futures = "0.3" # For async programming
+serde_json = "1.0"
+# For loading configuration from files
+config = "0.13"
+# Error handling utilities
+thiserror = "1.0"
+# Optional logging framework
 log = "0.4"
-env_logger = "0.10"
+env_logger = "0.9"
+
+[dev-dependencies]
+# For integration testing
+tokio = { version = "1.0", features = ["full"] }

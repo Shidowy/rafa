@@ -1,0 +1,13 @@
+[server]
+host = "127.0.0.1"  # Bind to localhost for isolated testing
+port = 9093         # Separate port to avoid conflicts with dev/prod
+
+[log]
+level = "warn"      # Only log warnings and errors for cleaner test output
+
+[broker]
+replication_factor = 1  # Simplified settings for testing
+default_topic_partitions = 1
+
+[storage]
+type = "in_memory"  # In-memory storage for fast, disposable test runs

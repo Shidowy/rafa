@@ -1,0 +1,13 @@
+[server]
+host = "127.0.0.1"  # Localhost for development
+port = 9092         # Standard development port
+
+[log]
+level = "debug"     # Verbose logging for debugging purposes
+
+[broker]
+replication_factor = 1  # No replication in development for simplicity
+default_topic_partitions = 1
+
+[storage]
+type = "in_memory"  # In-memory storage for faster iteration in development
